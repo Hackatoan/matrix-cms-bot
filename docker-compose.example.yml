@@ -1,0 +1,21 @@
+services:
+  matrix-cms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: matrix-cms
+    restart: unless-stopped
+    environment:
+      - MATRIX_HOMESERVER=https://matrix.example.com
+      - MATRIX_USER_ID=@cms:example.com
+      - MATRIX_TOKEN=syt_...
+      - OWNER_USER_ID=@you:example.com
+      - GITHUB_TOKEN=ghp_...
+      - GITHUB_REPO=YourUser/your-website
+      - GITHUB_BRANCH=main
+    networks:
+      - matrix
+
+networks:
+  matrix:
+    external: true
