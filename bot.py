@@ -282,7 +282,7 @@ async def on_media(room, event, client: AsyncClient):
         data = await download_mxc(client, url)
         gh_path = await add_mushroom_photo(data, filename, title, None)
         state[room_id] = {"mode": "idle", "data": {}}
-        await send(client, room_id, f"✅ Mushroom photo added!\nFile: `{gh_path}`\nhttps://hackatoa.com/#mycology")
+        await send(client, room_id, f"✅ Mushroom photo added!\nFile: `{gh_path}`\nhttps://hackatoa.com/myco")
     except Exception as e:
         log.error(f"Mushroom upload failed: {e}")
         await send(client, room_id, f"❌ Upload failed: {e}")
