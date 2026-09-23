@@ -3,13 +3,12 @@ import json
 import base64
 import re
 import os
-import time
 import aiohttp
 import logging
 from datetime import datetime, timezone
 from nio import (
     AsyncClient, RoomMessageText, RoomMessageImage, RoomMessageFile,
-    RoomMessageVideo, RoomMemberEvent, InviteEvent, LoginResponse,
+    RoomMessageVideo, InviteEvent,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -24,6 +23,9 @@ GITHUB_REPO       = os.environ.get("GITHUB_REPO", "Hackatoan/hackatoa.com")
 GITHUB_BRANCH     = os.environ.get("GITHUB_BRANCH", "Main")
 
 GITHUB_API = "https://api.github.com"
+
+# Prevent requests from hanging forever if the homeserver/GitHub API stalls.
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 # ── State machine ────────────────────────────────────────────────────────────
 # state[room_id] = {
@@ -100,7 +102,7 @@ async def add_blog_post(title: str, body: str) -> str:
         "meta": meta,
         "body": f"{body}\n\n*Posted on {date_str}*",
     }
-    async with aiohttp.ClientSession() as sess:
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as sess:
         src, sha = await gh_get_file(sess, "public/blog-data.js")
         entries = parse_blog_entries(src)
         # Ensure unique id
@@ -147,7 +149,7 @@ async def add_mushroom_photo(image_data: bytes, filename: str, title: str | None
         "title": title,
         "meta": meta_date,
     }
-    async with aiohttp.ClientSession() as sess:
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as sess:
         # Upload image
         await gh_put_binary(sess, gh_path, image_data, f"cms: add mushroom photo {filename}")
         # Update mushrooms-data.js
@@ -164,7 +166,7 @@ async def download_mxc(client: AsyncClient, mxc_url: str) -> bytes:
     # mxc://server/media_id  ->  /_matrix/media/v3/download/server/media_id
     mxc = mxc_url.removeprefix("mxc://")
     url = f"{MATRIX_HOMESERVER}/_matrix/media/v3/download/{mxc}"
-    async with aiohttp.ClientSession() as sess:
+    async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as sess:
         headers = {"Authorization": f"Bearer {client.access_token}"}
         async with sess.get(url, headers=headers) as r:
             r.raise_for_status()
@@ -246,7 +248,7 @@ async def on_text(room, event: RoomMessageText, client: AsyncClient):
 
     else:
         if room_state["mode"] == "idle":
-            await send(client, room_id, f"Unknown command. Try `!help`.")
+            await send(client, room_id, "Unknown command. Try `!help`.")
 
 async def on_media(room, event, client: AsyncClient):
     if event.sender == MATRIX_USER_ID:
@@ -260,10 +262,9 @@ async def on_media(room, event, client: AsyncClient):
     if room_state["mode"] != "mushroom_image":
         return  # ignore media when not expecting it
 
-    # Get the body text if the user also included a cancel
-    url = getattr(event, "url", None) or getattr(event.source.get("content", {}), "url", None)
-    if not url:
-        url = event.source.get("content", {}).get("url")
+    # `event.url` is set for most media events; fall back to the raw content
+    # dict for event types where matrix-nio doesn't surface it directly.
+    url = getattr(event, "url", None) or event.source.get("content", {}).get("url")
     if not url:
         await send(client, room_id, "❌ Could not extract media URL from this message.")
         return
