@@ -27,6 +27,12 @@ GITHUB_API = "https://api.github.com"
 # Prevent requests from hanging forever if the homeserver/GitHub API stalls.
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
+# Cap how much media we'll pull from the homeserver in one go. Without this,
+# a bogus/huge Content-Length (or a response that lies about its length) lets
+# download_mxc() buffer an unbounded amount of attacker-influenceable data
+# into memory before we ever get to upload it to GitHub.
+MAX_MEDIA_BYTES = 25 * 1024 * 1024  # 25 MiB
+
 # ── State machine ────────────────────────────────────────────────────────────
 # state[room_id] = {
 #   "mode": "idle" | "blog_body" | "mushroom_image",
@@ -167,7 +173,21 @@ async def download_mxc(session: aiohttp.ClientSession, client: AsyncClient, mxc_
     headers = {"Authorization": f"Bearer {client.access_token}"}
     async with session.get(url, headers=headers) as r:
         r.raise_for_status()
-        return await r.read()
+        declared_len = r.content_length
+        if declared_len is not None and declared_len > MAX_MEDIA_BYTES:
+            raise ValueError(
+                f"Media too large ({declared_len} bytes, max {MAX_MEDIA_BYTES})"
+            )
+        chunks = []
+        total = 0
+        async for chunk in r.content.iter_chunked(65536):
+            total += len(chunk)
+            if total > MAX_MEDIA_BYTES:
+                raise ValueError(
+                    f"Media exceeded max size of {MAX_MEDIA_BYTES} bytes during download"
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 # ── Bot send helper ──────────────────────────────────────────────────────────
 async def send(client: AsyncClient, room_id: str, text: str):
