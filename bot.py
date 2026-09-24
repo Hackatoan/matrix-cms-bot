@@ -249,6 +249,8 @@ async def on_text(room, event: RoomMessageText, client: AsyncClient):
     else:
         if room_state["mode"] == "idle":
             await send(client, room_id, "Unknown command. Try `!help`.")
+        elif room_state["mode"] == "mushroom_image":
+            await send(client, room_id, "📷 Still waiting for an image — send a photo, or `!cancel` to abort.")
 
 async def on_media(room, event, client: AsyncClient):
     if event.sender == MATRIX_USER_ID:
