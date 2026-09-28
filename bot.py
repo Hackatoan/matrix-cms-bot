@@ -288,6 +288,13 @@ async def on_media(room, event, client: AsyncClient, http_session: aiohttp.Clien
     room_state = state.get(room_id, {"mode": "idle", "data": {}})
 
     if room_state["mode"] != "mushroom_image":
+        # Previously silently dropped — the owner would see the image "sent"
+        # in their client with no indication the bot ignored it. Give the
+        # same kind of feedback we give for stray text messages.
+        if room_state["mode"] == "blog_body":
+            await send(client, room_id, "📷 That looks like an image, but I'm waiting for the blog post *text* body — send it as a message, or `!cancel` to abort.")
+        else:
+            await send(client, room_id, "📷 Got an image, but I'm not expecting one right now. Use `!mushroom` first to add it as a mushroom photo.")
         return  # ignore media when not expecting it
 
     # `event.url` is set for most media events; fall back to the raw content
