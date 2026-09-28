@@ -66,21 +66,30 @@ async def gh_put_file(session: aiohttp.ClientSession, path: str, content: str, s
         r.raise_for_status()
 
 async def gh_put_binary(session: aiohttp.ClientSession, path: str, data: bytes, message: str):
-    """Create a new file (no sha needed) or overwrite."""
+    """Create a new file (no sha needed) or overwrite.
+
+    Callers (e.g. add_mushroom_photo) generate second-resolution timestamped
+    filenames, so `path` almost never already exists. Rather than always
+    paying for a GET to check for a pre-existing sha, try the PUT first and
+    only fetch the sha (then retry as an overwrite) if GitHub tells us the
+    file is already there — saving an API round-trip on the common case.
+    """
     url = f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{path}"
-    # Check if file exists to get sha
-    sha = None
-    async with session.get(url + f"?ref={GITHUB_BRANCH}", headers=GH_HEADERS) as r:
-        if r.status == 200:
-            d = await r.json()
-            sha = d["sha"]
     body = {
         "message": message,
         "content": base64.b64encode(data).decode(),
         "branch": GITHUB_BRANCH,
     }
-    if sha:
-        body["sha"] = sha
+    async with session.put(url, headers=GH_HEADERS, json=body) as r:
+        if r.status != 422:
+            r.raise_for_status()
+            return
+
+    # 422 here means the file already exists and GitHub needs its sha.
+    async with session.get(url + f"?ref={GITHUB_BRANCH}", headers=GH_HEADERS) as r:
+        r.raise_for_status()
+        d = await r.json()
+        body["sha"] = d["sha"]
     async with session.put(url, headers=GH_HEADERS, json=body) as r:
         r.raise_for_status()
 
