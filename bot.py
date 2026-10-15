@@ -242,7 +242,7 @@ async def on_text(room, event: RoomMessageText, client: AsyncClient, http_sessio
             await send(client, room_id, f"✅ Blog post published! ID: `{slug}`\nhttps://hackatoa.com/#blog")
         except Exception as e:
             log.error(f"Blog post failed: {e}")
-            await send(client, room_id, f"❌ Failed to publish: {e}")
+            await send(client, room_id, "❌ Failed to publish. Please try again later.")
             state[room_id] = {"mode": "idle", "data": {}}
         return
 
@@ -321,7 +321,7 @@ async def on_media(room, event, client: AsyncClient, http_session: aiohttp.Clien
         await send(client, room_id, f"✅ Mushroom photo added!\nFile: `{gh_path}`\nhttps://hackatoa.com/myco")
     except Exception as e:
         log.error(f"Mushroom upload failed: {e}")
-        await send(client, room_id, f"❌ Upload failed: {e}")
+        await send(client, room_id, "❌ Upload failed. Please try again later.")
         state[room_id] = {"mode": "idle", "data": {}}
 
 # ── Main ─────────────────────────────────────────────────────────────────────
