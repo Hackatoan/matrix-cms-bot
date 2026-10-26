@@ -27,6 +27,10 @@ GITHUB_API = "https://api.github.com"
 # Prevent requests from hanging forever if the homeserver/GitHub API stalls.
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
+# Pre-compile regex patterns to avoid recompilation on every parse
+BLOG_ENTRIES_PATTERN = re.compile(r"window\.BLOG_ENTRIES\s*=\s*(\[.*?\]);", re.DOTALL)
+MUSHROOMS_DATA_PATTERN = re.compile(r"window\.MUSHROOMS_DATA\s*=\s*(\[.*?\]);", re.DOTALL)
+
 # Cap how much media we'll pull from the homeserver in one go. Without this,
 # a bogus/huge Content-Length (or a response that lies about its length) lets
 # download_mxc() buffer an unbounded amount of attacker-influenceable data
@@ -98,7 +102,7 @@ def slugify(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40]
 
 def parse_blog_entries(js_src: str) -> list:
-    m = re.search(r"window\.BLOG_ENTRIES\s*=\s*(\[.*?\]);", js_src, re.DOTALL)
+    m = BLOG_ENTRIES_PATTERN.search(js_src)
     if not m:
         return []
     return json.loads(m.group(1))
@@ -135,7 +139,7 @@ async def add_blog_post(session: aiohttp.ClientSession, title: str, body: str) -
 
 # ── Mushroom helpers ─────────────────────────────────────────────────────────
 def parse_mushrooms(js_src: str) -> list:
-    m = re.search(r"window\.MUSHROOMS_DATA\s*=\s*(\[.*?\]);", js_src, re.DOTALL)
+    m = MUSHROOMS_DATA_PATTERN.search(js_src)
     if not m:
         return []
     return json.loads(m.group(1))
