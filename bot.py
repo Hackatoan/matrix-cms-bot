@@ -137,6 +137,34 @@ async def add_blog_post(session: aiohttp.ClientSession, title: str, body: str) -
                       f"cms: add blog post '{title}'")
     return uid
 
+RECENT_DEFAULT = 5
+RECENT_MAX = 20
+
+def parse_recent_count(text: str) -> int | None:
+    """Parse `!recent [n]`. Returns the clamped count, or None if n is invalid."""
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        return RECENT_DEFAULT
+    arg = parts[1].strip()
+    if not arg.isdigit() or int(arg) < 1:
+        return None
+    return min(int(arg), RECENT_MAX)
+
+def format_recent_posts(entries: list, n: int) -> str:
+    if not entries:
+        return "📭 No blog posts published yet."
+    shown = entries[:n]
+    lines = [f"🗂️ Latest {len(shown)} of {len(entries)} blog post(s):", ""]
+    for e in shown:
+        meta = e.get("meta", "")
+        suffix = f" — {meta}" if meta else ""
+        lines.append(f"• {e.get('title', '(untitled)')} (`{e.get('id', '?')}`){suffix}")
+    return "\n".join(lines)
+
+async def list_recent_posts(session: aiohttp.ClientSession, n: int) -> str:
+    src, _sha = await gh_get_file(session, "public/blog-data.js")
+    return format_recent_posts(parse_blog_entries(src), n)
+
 # ── Mushroom helpers ─────────────────────────────────────────────────────────
 def parse_mushrooms(js_src: str) -> list:
     m = MUSHROOMS_DATA_PATTERN.search(js_src)
@@ -212,6 +240,7 @@ HELP_TEXT = """\
 
   !blog <title>     Start a new blog post (sends next message as body)
   !mushroom [title] Add a mushroom photo (send image/file next)
+  !recent [n]       List the latest n blog posts (default 5, max 20)
   !status           Show bot status
   !help             This message
 """
@@ -256,6 +285,17 @@ async def on_text(room, event: RoomMessageText, client: AsyncClient, http_sessio
 
     elif text.lower() == "!status":
         await send(client, room_id, f"✅ CMS bot running\nOwner: {OWNER_USER_ID}\nRepo: {GITHUB_REPO} @ {GITHUB_BRANCH}")
+
+    elif text.lower() == "!recent" or text.lower().startswith("!recent "):
+        n = parse_recent_count(text)
+        if n is None:
+            await send(client, room_id, f"Usage: `!recent [n]` (n = 1–{RECENT_MAX})")
+            return
+        try:
+            await send(client, room_id, await list_recent_posts(http_session, n))
+        except Exception as e:
+            log.error(f"Listing recent posts failed: {e}")
+            await send(client, room_id, "❌ Couldn't fetch recent posts. Please try again later.")
 
     elif text.lower().startswith("!blog "):
         title = text[6:].strip()

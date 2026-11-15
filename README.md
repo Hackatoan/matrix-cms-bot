@@ -11,6 +11,7 @@ DM the bot text or images and it publishes them to a static site — a lightweig
 ## Features
 
 - Publish blog posts and photos via Matrix DM
+- `!recent [n]` lists the latest published blog posts (default 5, max 20)
 - Generates/updates a static site
 - Simple, self-hosted workflow
 
