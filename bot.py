@@ -140,6 +140,9 @@ async def add_blog_post(session: aiohttp.ClientSession, title: str, body: str) -
 RECENT_DEFAULT = 5
 RECENT_MAX = 20
 
+BLOG_TITLE_MAX = 200  # Prevent unbounded memory/JSON bloat
+MUSHROOM_TITLE_MAX = 200
+
 def parse_recent_count(text: str) -> int | None:
     """Parse `!recent [n]`. Returns the clamped count, or None if n is invalid."""
     parts = text.split(maxsplit=1)
@@ -296,12 +299,18 @@ async def on_text(room, event: RoomMessageText, client: AsyncClient, http_sessio
         if not title:
             await send(client, room_id, "Usage: `!blog My Post Title`")
             return
+        if len(title) > BLOG_TITLE_MAX:
+            await send(client, room_id, f"❌ Blog title too long ({len(title)} chars, max {BLOG_TITLE_MAX}).")
+            return
         state[room_id] = {"mode": "blog_body", "data": {"title": title}}
         await send(client, room_id, f"📝 Post title: **{title}**\n\nSend the post body as your next message. (Send `!cancel` to abort.)")
 
     elif text.lower().startswith("!mushroom"):
         parts = text.split(maxsplit=1)
         title = parts[1].strip() if len(parts) > 1 else None
+        if title and len(title) > MUSHROOM_TITLE_MAX:
+            await send(client, room_id, f"❌ Title too long ({len(title)} chars, max {MUSHROOM_TITLE_MAX}).")
+            return
         state[room_id] = {"mode": "mushroom_image", "data": {"title": title}}
         hint = f"title: **{title}**" if title else "no title (will use date)"
         await send(client, room_id, f"🍄 Mushroom photo ({hint})\n\nSend the image as your next message. (Send `!cancel` to abort.)")
