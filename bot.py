@@ -15,6 +15,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 MATRIX_HOMESERVER = os.environ["MATRIX_HOMESERVER"]
+if not MATRIX_HOMESERVER.startswith("https://"):
+    raise ValueError("MATRIX_HOMESERVER must use HTTPS to protect authentication tokens")
 MATRIX_USER_ID    = os.environ["MATRIX_USER_ID"]
 MATRIX_TOKEN      = os.environ["MATRIX_TOKEN"]
 OWNER_USER_ID     = os.environ["OWNER_USER_ID"]
